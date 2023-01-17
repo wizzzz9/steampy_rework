@@ -28,7 +28,7 @@ class ConfirmationExecutor:
     CONF_URL = "https://steamcommunity.com/mobileconf"
 
     def __init__(self, identity_secret: str, my_steam_id: str, session: requests.Session, proxy) -> None:
-        self._my_steam_id = str(my_steam_id)
+        self._my_steam_id = my_steam_id
         self._identity_secret = identity_secret
         self._session = session
         self._proxy = proxy
@@ -43,7 +43,6 @@ class ConfirmationExecutor:
     def confirm_sell_listing(self, asset_id: str) -> dict:
         confirmations = self._get_confirmations()
         confirmation = self._select_sell_listing_confirmation(confirmations, asset_id)
-        print(confirmation, " cc " ,confirmations, asset_id)
         return self._send_confirmation(confirmation)
 
 
@@ -88,7 +87,7 @@ class ConfirmationExecutor:
         return response.json()['html']
 
 
-    def _create_confirmation_params(self, tag_string: str) -> dict:
+    def _create_confirmation_params(self, tag_string) -> dict:
         timestamp = int(time.time())
         confirmation_key = guard.generate_confirmation_key(self._identity_secret, tag_string, timestamp)
         android_id = guard.generate_device_id(self._my_steam_id)

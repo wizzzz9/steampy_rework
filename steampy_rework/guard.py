@@ -12,8 +12,6 @@ def load_steam_guard(steam_guard: str) -> dict:
     if os.path.isfile(steam_guard):
         with open(steam_guard, 'r') as f:
             return json.loads(f.read())
-    else:
-        return json.loads(steam_guard)
 
 
 def generate_one_time_code(shared_secret: str, timestamp: int = None) -> str:

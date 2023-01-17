@@ -68,6 +68,22 @@ class SteamMarket:
         listings = get_market_listings_from_html_for_confirm(response.text)
         return listings
 
+    @login_required
+    def create_sell_order(self, assetid: str, game: GameOptions, money_to_receive: str) -> dict:
+        data = {
+            "assetid": assetid,
+            "sessionid": self._session_id,
+            "contextid": game.context_id,
+            "appid": game.app_id,
+            "amount": 1,
+            "price": money_to_receive
+        }
+        headers = {'Referer': "%s/profiles/%s/inventory" % (SteamUrl.COMMUNITY_URL, self.get_my_steamid_form_session())}
+        response = self._session.post(SteamUrl.COMMUNITY_URL + "/market/sellitem/", data, headers=headers).json()
+        if response.get("needs_mobile_confirmation"):
+            return self._confirm_sell_listing(assetid)
+        return response
+
 
     @login_required
     def get_my_market_listings(self) -> dict:
@@ -107,7 +123,7 @@ class SteamMarket:
                     listings["sell_listings"] = {**listings["sell_listings"], **listings_2["sell_listings"]}
         return listings
 
-
+    @login_required
     def get_my_steamid_form_session(self):
         data = str(self._session.cookies)
         cookies = data.replace('<RequestsCookieJar', '').replace('>]>', '"]').replace(">, <", '", "').replace('[<', '["')

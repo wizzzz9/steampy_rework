@@ -18,7 +18,6 @@ from steampy_rework.trade_pages import *
 from steampy_rework.utils import text_between, texts_between, merge_items_with_descriptions_from_inventory, \
     steam_id_to_account_id, merge_items_with_descriptions_from_offers, get_description_key, \
     merge_items_with_descriptions_from_offer, account_id_to_steam_id, get_key_value_from_url, parse_price, get_trade_offers_data
-from requests.auth import HTTPProxyAuth
 import pickle
 
 
@@ -45,17 +44,20 @@ class SteamClient:
             f.close()
         else:
             self._session = requests.Session()
-        self.steam_guard = steam_guard
         self.was_login_executed = False
         self.username = username
         self._password = password
         self.market = SteamMarket(session=self._session, proxy=self.proxy)
         self.chat = SteamChat(self._session, self.proxy)
         self.my_steamid = None
+        if isinstance(steam_guard, str):
+            self.steam_guard = guard.load_steam_guard(steam_guard)
+        elif isinstance(steam_guard, dict):
+            self.steam_guard = steam_guard
 
 
     @login_required
-    def get_my_steamid_form_session(self) -> str | None:
+    def get_my_steamid_form_session(self) -> str:
         data = str(self._session.cookies)
         steamid = re.findall(r"7656+[\d]{13}", fr"{data}")
         if steamid:
@@ -69,17 +71,11 @@ class SteamClient:
         return username.lower() in main_page_response.text.lower()
 
 
-    def login(self, username: str, password: str, steam_guard: str | dict ) -> None | str:
-        if isinstance(steam_guard, str):
-            self.steam_guard = guard.load_steam_guard(steam_guard)
-        elif isinstance(steam_guard, dict):
-            self.steam_guard = steam_guard
+    def login(self, username: str, password: str):
         self.username = username
         self._password = password
         if not self.check_session_static(username, self.proxy, self._session):
-            response_login = LoginExecutor(username, password, self.steam_guard['shared_secret'], self._session, self.proxy).login()
-            if isinstance(response_login, str):
-                return response_login
+            LoginExecutor(username, password, self.steam_guard['shared_secret'], self._session, self.proxy).login()
             self.was_login_executed = True
             self.market._set_login_executed(self.steam_guard, self._get_session_id())
         else:
@@ -108,7 +104,7 @@ class SteamClient:
         if None in [self.username, self._password, self.steam_guard]:
             raise InvalidCredentials('You have to pass username, password and steam_guard'
                                      'parameters when using "with" statement')
-        self.login(self.username, self._password, self.steam_guard)
+        self.login(self.username, self._password)
         return self
 
 
@@ -179,7 +175,6 @@ class SteamClient:
         return response
 
     def get_trade_offers(self,received , sending, active, merge: bool = True) -> dict:
-
         params = {'key': self._api_key,
                   'get_sent_offers': sending,
                   'get_received_offers': received,
@@ -192,12 +187,7 @@ class SteamClient:
         if response != {'response': {'next_cursor': 0}}:
             response = self._filter_non_active_offers(response)
             if merge:
-                try:
-                    response = get_trade_offers_data(response)
-                except Exception as e:
-                    exc_type, exc_obj, exc_tb = sys.exc_info()
-                    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                    print(exc_type, fname, exc_tb.tb_lineno)
+                response = get_trade_offers_data(response)
         return response
 
     @staticmethod
@@ -250,6 +240,9 @@ class SteamClient:
             items.append(json.loads(item))
         return items
 
+
+
+
     @login_required
     def accept_trade_offer(self, trade_offer_id: str) -> dict:
         partner = self._fetch_trade_partner_id(trade_offer_id)
@@ -265,43 +258,6 @@ class SteamClient:
         if response.get('needs_mobile_confirmation', False):
             return self._confirm_transaction(trade_offer_id)
         return response
-
-    # @login_required
-    # def accept_trade_offer_60(self, trade_offer_id: str) -> dict:
-    #     trade_offer_id = str(trade_offer_id)
-    #     # trade = self.get_trade_offer(trade_offer_id)
-    #     # trade_offer_state = TradeOfferState(trade['response']['offer']['trade_offer_state'])
-    #     # if trade_offer_state is not TradeOfferState.Active:
-    #     #     raise ApiException("Invalid trade offer state: {} ({})".format(trade_offer_state.name,trade_offer_state.value))
-    #     partner = self._fetch_trade_partner_id(trade_offer_id)
-    #     session_id = self._get_session_id()
-    #     accept_url = SteamUrl.COMMUNITY_URL + '/tradeoffer/' + trade_offer_id + '/accept'
-    #     params = {'sessionid': session_id,
-    #               'tradeofferid': trade_offer_id,
-    #               'serverid': '1',
-    #               'partner': partner,
-    #               'captcha': ''}
-    #     headers = {'Referer': self._get_trade_offer_url(trade_offer_id)}
-    #     data = self._session.post(accept_url, data=params, headers=headers, proxies=self.proxy).json()
-    #     print(f"Error: {data}")
-    #     if 'strError' in data:
-    #         print('zase')
-    #         time.sleep(1)
-    #         data = self._session.post(accept_url, data=params, headers=headers, proxies=self.proxy).json()
-    #         if 'strError' in data:
-    #             print('zase')
-    #             time.sleep(3)
-    #             data = self._session.post(accept_url, data=params, headers=headers, proxies=self.proxy).json()
-    #             if 'strError' in data:
-    #                 print('zase')
-    #                 time.sleep(5)
-    #                 data = self._session.post(accept_url, data=params, headers=headers, proxies=self.proxy).json()
-    #
-    #     time.sleep(30)
-    #     print('try')
-    #     accept = self._confirm_transaction(trade_offer_id)
-    #     print(f'Accept: {accept}')
-    #     return accept
 
 
     @login_required
@@ -444,13 +400,11 @@ class SteamClient:
     @login_required
     def get_my_apikey(self):
         req = self._session.get('https://steamcommunity.com/dev/apikey', proxies=self.proxy)
-        print(f"get_my_apikey {req.status_code}")
         data_apikey = re.findall(r"([^\\\n.>\\\t</_=:, $(abcdefghijklmnopqrstuvwxyz )&;-]{32})", fr"{req.text}")
         if len(data_apikey) == 1:
             apikey = data_apikey[0]
             return apikey
-        else:
-            return None
+        raise ApiException("Can't get my steam apikey")
 
     def register_my_apikey(self):
         data = {'domain': 'localhost', 'agreeToTerms': 'agreed', 'sessionid': self._get_session_id(), 'Submit': 'Register'}
@@ -460,23 +414,17 @@ class SteamClient:
             if len(data_apikey) == 1:
                 apikey = data_apikey[0]
                 return apikey
-            else:
-                return False
+        raise ApiException("Can't create and get my steam apikey")
 
-    #
-    # def accept_tradeoffer_new(self, offer_id):
-    #     req = self._session.post(f'https://steamcommunity.com/tradeoffer/{offer_id}/accept', proxies=self.proxy)
-    #     print(f"Errpr accept_tradeoffer_new {req.text}")
-    #     return req.status_code
 
-    def get_page_tradeoffers(self):
+    def get_recived_tradeoffers(self) -> dict:
         my_steamid = self.get_my_steamid_form_session()
         req = self._session.get(f'https://steamcommunity.com/profiles/{my_steamid}/tradeoffers/', proxies=self.proxy).text
         trade_offers = get_recived_offers(req, self.proxy)
         return trade_offers
 
 
-    def get_page_sent_offers(self):
+    def get_sent_tradeoffers(self) -> dict:
         my_steamid = self.get_my_steamid_form_session()
         req = self._session.get(f'https://steamcommunity.com/profiles/{my_steamid}/tradeoffers/sent/', proxies=self.proxy).text
         trade_offers = get_sent_offers(req, self.proxy)

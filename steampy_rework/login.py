@@ -20,17 +20,13 @@ class LoginExecutor:
     def login(self) -> requests.Session | str:
         if not self.log_status:
             login_response = self._send_login_request()
-            if not login_response.json().get('success'):
-                self._check_for_captcha(login_response)
-                login_response = self._enter_steam_guard_if_necessary(login_response)
-                self._assert_valid_credentials(login_response)
-                self._perform_redirects(login_response.json())
-                self.set_sessionid_cookies()
-                return self.session
-            else:
-                if login_response.json().get('message'):
-                    raise BadSteamResponse(login_response.json().get('message'))
-                raise BadSteamResponse("Can't log in  steam")
+            self._check_for_captcha(login_response)
+            login_response = self._enter_steam_guard_if_necessary(login_response)
+            self._assert_valid_credentials(login_response)
+            self._perform_redirects(login_response.json())
+            self.set_sessionid_cookies()
+            return self.session
+
         else:
             return self.session
 
