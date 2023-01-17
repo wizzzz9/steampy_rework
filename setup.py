@@ -8,7 +8,7 @@ version = '0.0.1'
 
 setup(
     name='steampy_rework',
-    packages=['steampy_rework', 'test', 'examples', ],
+    packages=['steampy_rework', 'examples', ],
     version=version,
     description='A Steam lib for trade automation',
     author='Viacheslav Patokin',
