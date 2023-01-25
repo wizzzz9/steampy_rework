@@ -36,7 +36,7 @@ class LoginExecutor:
         encrypted_password = self._encrypt_password(rsa_params)
         rsa_timestamp = rsa_params['rsa_timestamp']
         request_data = self._prepare_login_request_data(encrypted_password, rsa_timestamp)
-        return self.session.post(SteamUrl.STORE_URL + '/login/dologin', data=request_data, proxies=self.proxy)
+        return self.session.post(SteamUrl.COMMUNITY_URL + '/login/dologin', data=request_data, proxies=self.proxy)
 
 
     def set_sessionid_cookies(self):
@@ -58,7 +58,7 @@ class LoginExecutor:
 
     def _fetch_rsa_params(self, current_number_of_repetitions: int = 0) -> dict:
         maximal_number_of_repetitions = 5
-        key_response = self.session.post(SteamUrl.STORE_URL + '/login/getrsakey/',
+        key_response = self.session.post(SteamUrl.COMMUNITY_URL + '/login/getrsakey/',
                                          data={'username': self.username}, proxies=self.proxy).json()
         try:
             rsa_mod = int(key_response['publickey_mod'], 16)
