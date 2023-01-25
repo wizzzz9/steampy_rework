@@ -35,7 +35,8 @@ class SteamClient:
     def __init__(self, api_key: str = None, proxy: str = None, username: str = None, password: str = None, steam_guard: str | dict = None, session_path: str = None) -> None:
         self._api_key = api_key
         if proxy:
-            self.proxy = {"http": f"http://{proxy}"}
+            self.proxy = {"http": f"http://{proxy}",
+                          "https": f"http://{proxy}"}
         else:
             self.proxy = {"https": "", "http": ""}
         if session_path: #Check if session in folder
