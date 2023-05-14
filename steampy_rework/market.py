@@ -6,8 +6,10 @@ from requests import Session
 from steampy_rework.confirmation import ConfirmationExecutor
 from steampy_rework.exceptions import ApiException, TooManyRequests, LoginRequired
 from steampy_rework.models import Currency, SteamUrl, GameOptions
-from steampy_rework.utils import text_between, get_listing_id_to_assets_address_from_html, get_market_listings_from_html, \
-    merge_items_with_descriptions_from_listing, get_market_sell_listings_from_api,get_market_listings_from_html_for_confirm
+from steampy_rework.utils import text_between, get_listing_id_to_assets_address_from_html, \
+    get_market_listings_from_html, \
+    merge_items_with_descriptions_from_listing, get_market_sell_listings_from_api, \
+    get_market_listings_from_html_for_confirm
 
 
 def login_required(func):
@@ -27,36 +29,36 @@ class SteamMarket:
         self.was_login_executed = False
         self.proxy = proxy
 
-
-    def _set_login_executed(self,steam_guard, session_id: str):
+    def _set_login_executed(self, steam_guard, session_id: str):
         self.steam_guard = steam_guard
         self._session_id = session_id
         self.was_login_executed = True
 
-
     def fetch_price(self, item_hash_name: str, game: GameOptions, currency: Currency = Currency.USD) -> dict:
         url = SteamUrl.COMMUNITY_URL + '/market/priceoverview/'
-        params = {'country': 'PL',
-                  'currency': currency.value,
-                  'appid': game.app_id,
-                  'market_hash_name': item_hash_name}
+        params = {
+            'country': 'PL',
+            'currency': currency.value,
+            'appid': game.app_id,
+            'market_hash_name': item_hash_name,
+        }
         response = self._session.get(url, params=params, proxies=self.proxy)
         if response.status_code == 429:
             raise TooManyRequests("You can fetch maximum 20 prices in 60s period")
         return response.json()
-
 
     @login_required
     def fetch_price_history(self, item_hash_name: str, game: GameOptions) -> dict:
         url = SteamUrl.COMMUNITY_URL + '/market/pricehistory/'
-        params = {'country': 'PL',
-                  'appid': game.app_id,
-                  'market_hash_name': item_hash_name}
+        params = {
+            'country': 'PL',
+            'appid': game.app_id,
+            'market_hash_name': item_hash_name,
+        }
         response = self._session.get(url, params=params, proxies=self.proxy)
         if response.status_code == 429:
             raise TooManyRequests("You can fetch maximum 20 prices in 60s period")
         return response.json()
-
 
     @login_required
     def get_my_market_listings_for_confirm(self) -> dict:
@@ -78,12 +80,12 @@ class SteamMarket:
             "amount": 1,
             "price": money_to_receive
         }
-        headers = {'Referer': "%s/profiles/%s/inventory" % (SteamUrl.COMMUNITY_URL, self.get_my_steamid_form_session())}
+        headers = {'Referer': "%s/profiles/%s/inventory" % (SteamUrl.COMMUNITY_URL,
+                                                            self.get_my_steamid_form_session(self))}
         response = self._session.post(SteamUrl.COMMUNITY_URL + "/market/sellitem/", data, headers=headers).json()
         if response.get("needs_mobile_confirmation"):
             return self._confirm_sell_listing(assetid)
         return response
-
 
     @login_required
     def get_my_market_listings(self) -> dict:
@@ -97,7 +99,9 @@ class SteamMarket:
                                                               assets_descriptions)
         if '<span id="tabContentsMyActiveMarketListings_end">' in response.text:
             n_showing = int(text_between(response.text, '<span id="tabContentsMyActiveMarketListings_end">', '</span>'))
-            n_total = int(text_between(response.text, '<span id="tabContentsMyActiveMarketListings_total">', '</span>').replace(',',''))
+            n_total = int(
+                text_between(response.text, '<span id="tabContentsMyActiveMarketListings_total">', '</span>').replace(
+                    ',', ''))
             if n_showing < n_total < 1000:
                 url = "%s/market/mylistings/render/?query=&start=%s&count=%s" % (SteamUrl.COMMUNITY_URL, n_showing, -1)
                 response = self._session.get(url, proxies=self.proxy)
@@ -111,10 +115,12 @@ class SteamMarket:
                 listings["sell_listings"] = {**listings["sell_listings"], **listings_2["sell_listings"]}
             else:
                 for i in range(0, n_total, 100):
-                    url = "%s/market/mylistings/?query=&start=%s&count=%s" % (SteamUrl.COMMUNITY_URL, n_showing + i, 100)
+                    url = "%s/market/mylistings/?query=&start=%s&count=%s" % (
+                        SteamUrl.COMMUNITY_URL, n_showing + i, 100)
                     response = self._session.get(url, proxies=self.proxy)
                     if response.status_code != 200:
-                        raise ApiException("There was a problem getting the listings. http code: %s" % response.status_code)
+                        raise ApiException(
+                            "There was a problem getting the listings. http code: %s" % response.status_code)
                     jresp = response.json()
                     listing_id_to_assets_address = get_listing_id_to_assets_address_from_html(jresp.get("hovers"))
                     listings_2 = get_market_sell_listings_from_api(jresp.get("results_html"))
@@ -126,13 +132,13 @@ class SteamMarket:
     @login_required
     def get_my_steamid_form_session(self):
         data = str(self._session.cookies)
-        cookies = data.replace('<RequestsCookieJar', '').replace('>]>', '"]').replace(">, <", '", "').replace('[<', '["')
+        cookies = data.replace('<RequestsCookieJar', '').replace('>]>', '"]').replace(">, <", '", "').replace('[<',
+                                                                                                              '["')
         cookies = json.loads(cookies)
         for cookie in cookies:
             if 'Cookie steamMachineAuth' in cookie and '= for steamcommunity.com/' in cookie:
                 steamid = cookie.replace('Cookie steamMachineAuth', '').replace('= for steamcommunity.com/', '')
                 return steamid
-
 
     @login_required
     def create_sell_order(self, assetid: str, game: GameOptions, money_to_receive: str) -> dict:
@@ -144,12 +150,13 @@ class SteamMarket:
             "amount": 1,
             "price": money_to_receive
         }
-        headers = {'Referer': "%s/profiles/%s/inventory" % (SteamUrl.COMMUNITY_URL, self.get_my_steamid_form_session())}
-        response = self._session.post(SteamUrl.COMMUNITY_URL + "/market/sellitem/", data, headers=headers, proxies=self.proxy).json()
+        headers = {'Referer': "%s/profiles/%s/inventory" % (SteamUrl.COMMUNITY_URL,
+                                                            self.get_my_steamid_form_session(self))}
+        response = self._session.post(SteamUrl.COMMUNITY_URL + "/market/sellitem/", data, headers=headers,
+                                      proxies=self.proxy).json()
         if response.get("needs_mobile_confirmation"):
             return self._confirm_sell_listing(assetid)
         return response
-
 
     @login_required
     def create_buy_order(self, market_name: str, price_single_item: str, quantity: int, game: GameOptions,
@@ -170,16 +177,15 @@ class SteamMarket:
                                % response.get("success"))
         return response
 
-
     @login_required
     def buy_item(self, market_name: str, market_id: str, price: int, fee: int, game: GameOptions,
                  currency: Currency = Currency.USD) -> dict:
         data = {
             "sessionid": self._session_id,
             "currency": currency.value,
-            "subtotal" : price - fee,
-            "fee" : fee,
-            "total" : price,
+            "subtotal": price - fee,
+            "fee": fee,
+            "total": price,
             "quantity": '1'
         }
         headers = {'Referer': "%s/market/listings/%s/%s" % (SteamUrl.COMMUNITY_URL, game.app_id,
@@ -190,11 +196,10 @@ class SteamMarket:
             if response["wallet_info"]["success"] != 1:
                 raise ApiException("There was a problem buying this item. Are you using the right currency? success: %s"
                                    % response['wallet_info']['success'])
-        except:
+        except Exception as err:
             raise ApiException("There was a problem buying this item. Message: %s"
-                               % response.get("message"))
+                               % response.get("message"), "\nError type: %s" % err)
         return response
-
 
     @login_required
     def cancel_sell_order(self, sell_listing_id: str) -> None:
@@ -205,20 +210,20 @@ class SteamMarket:
         if response.status_code != 200:
             raise ApiException("There was a problem removing the listing. http code: %s" % response.status_code)
 
-
     @login_required
     def cancel_buy_order(self, buy_order_id) -> dict:
         data = {
-            "sessionid": self._session_id,
-            "buy_orderid": buy_order_id
-        }
+                "sessionid": self._session_id,
+                "buy_orderid": buy_order_id,
+            }
         headers = {"Referer": SteamUrl.COMMUNITY_URL + "/market"}
-        response = self._session.post(SteamUrl.COMMUNITY_URL + "/market/cancelbuyorder/", data, headers=headers, proxies=self.proxy).json()
+        response = self._session.post(SteamUrl.COMMUNITY_URL + "/market/cancelbuyorder/", data, headers=headers,
+                                      proxies=self.proxy).json()
         if response.get("success") != 1:
             raise ApiException("There was a problem canceling the order. success: %s" % response.get("success"))
         return response
 
-
     def _confirm_sell_listing(self, asset_id: str) -> dict:
-        con_executor = ConfirmationExecutor(self.steam_guard['identity_secret'], self.get_my_steamid_form_session(), self._session, proxy=self.proxy)
+        con_executor = ConfirmationExecutor(self.steam_guard['identity_secret'], self.get_my_steamid_form_session(self),
+                                            self._session, proxy=self.proxy)
         return con_executor.confirm_sell_listing(asset_id)
