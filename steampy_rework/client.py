@@ -3,6 +3,7 @@ import time
 import bs4
 import urllib.parse as urlparse
 from typing import List, Union
+
 import os
 import sys
 import json
@@ -62,6 +63,8 @@ class SteamClient:
             self.steam_guard = guard.load_steam_guard(steam_guard)
         elif isinstance(steam_guard, dict):
             self.steam_guard = steam_guard
+    def get_username(self):
+        return self.username
 
     @login_required
     def get_my_steamid_form_session(self) -> str:
@@ -90,7 +93,7 @@ class SteamClient:
     def save_session(self, path, username):
         with open(f'{path}\\{username}.pkl', 'wb') as f:
             pickle.dump(self._session, f)
-        f.close()
+
 
     @login_required
     def logout(self) -> None:
@@ -137,7 +140,7 @@ class SteamClient:
 
     @login_required
     def get_my_inventory(self, game: GameOptions, merge: bool = True, count: int = 5000) -> dict:
-        steam_id = self.get_my_steamid_form_session(self)
+        steam_id = self.get_my_steamid_form_session()
         return self.get_partner_inventory(steam_id, game, merge, count)
 
     @login_required
